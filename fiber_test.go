@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -243,3 +244,99 @@ func TestBodyParserXml(t *testing.T) {
 }
 
 // HTTP Response
+
+func TestJSON(t *testing.T) {
+	app := fiber.New()
+	app.Get("/user", func(c *fiber.Ctx) error {
+		return c.JSON(map[string]string{
+			"username": "jalal",
+			"name":     "jalal akbar",
+		})
+	})
+	request := httptest.NewRequest("GET", "/user", nil)
+	response, err := app.Test(request)
+	assert.Nil(t, err)
+
+	body, err := io.ReadAll(response.Body)
+
+	assert.Nil(t, err)
+	assert.Equal(t, `{"name":"jalal akbar","username":"jalal"}`, string(body))
+}
+
+// Download File
+
+func TestDownloadFile(t *testing.T) {
+
+	t.Run("Download", func(t *testing.T) {
+		app.Get("/download", func(c *fiber.Ctx) error {
+			return c.Download("./source/contoh.txt", "contoh.txt")
+		})
+		request := httptest.NewRequest("GET", "/download", nil)
+		response, err := app.Test(request)
+
+		assert.Nil(t, err)
+		assert.Equal(t, `attachment; filename="contoh.txt"`, response.Header.Get("Content-Disposition"))
+
+		body, err := io.ReadAll(response.Body)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "this is sample", string(body))
+	})
+	t.Run("Send", func(t *testing.T) {
+		app.Get("/send", func(c *fiber.Ctx) error {
+			return c.Send([]byte("Hello"))
+		})
+		request := httptest.NewRequest("GET", "/send", nil)
+		response, err := app.Test(request)
+
+		assert.Nil(t, err)
+
+		body, err := io.ReadAll(response.Body)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "Hello", string(body))
+		fmt.Println("Send: ", string(body))
+	})
+	t.Run("SendFile", func(t *testing.T) {
+		app.Get("/sendfile", func(c *fiber.Ctx) error {
+			return c.SendFile("./source/contoh.txt")
+		})
+		request := httptest.NewRequest("GET", "/sendfile", nil)
+		response, err := app.Test(request)
+
+		assert.Nil(t, err)
+
+		body, err := io.ReadAll(response.Body)
+
+		assert.Nil(t, err)
+		assert.Equal(t, "this is sample", string(body))
+		fmt.Println("Send File: ", string(body))
+	})
+
+}
+
+func TestRoutingGroup(t *testing.T) {
+	helloWorld := func(c *fiber.Ctx) error {
+		return c.SendString("Hello World")
+
+	}
+
+	api := app.Group("/api")
+	api.Group("/hello", helloWorld)
+	api.Group("/world", helloWorld)
+
+	web := app.Group("/web")
+	web.Group("/hello", helloWorld)
+	web.Group("/world", helloWorld)
+
+	request := httptest.NewRequest("GET", "/api/hello", nil)
+	response, err := app.Test(request)
+	assert.Nil(t, err)
+
+	body, err := io.ReadAll(response.Body)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "Hello World", string(body))
+}
+
+//func (t *testing.T){}
